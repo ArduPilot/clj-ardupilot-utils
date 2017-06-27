@@ -57,10 +57,11 @@
   "Handles the intermediate format message representation"
   [format-messages message]
   `(let [names# (string/split (:Columns ~message) #",")
-         format# (:Format ~message)]
+         format# (:Format ~message)
+         message-name# (:Name ~message)]
      (assoc ~format-messages
-            (:Type ~message) {:name (:Name ~message)
-                              :length (:Length ~message)
+            (:Type ~message) {:name message-name#
                               :fields (mapv #(hash-map :name (keyword (get names# %))
                                                        :type (get format# %))
-                                            (range (count format#)))})))
+                                            (range (count format#)))
+                              :message-type (keyword message-name#)})))
