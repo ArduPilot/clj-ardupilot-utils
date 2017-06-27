@@ -1,4 +1,4 @@
-(defproject clj-ardupilot-utils "0.1.0-SNAPSHOT"
+(defproject ardupilot/clj-ardupilot-utils "0.1.0-SNAPSHOT"
   :description "A collection of utilities for use with ArduPilot or similair autopilots"
   :url "https://github.com/wickedshell/clj-ardupilot-utils"
   :license {:name "Eclipse Public License"
