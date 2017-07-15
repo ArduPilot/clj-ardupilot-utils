@@ -4,6 +4,7 @@
             [clojure.test :refer :all])
   (:import [java.util.zip ZipEntry]
            [java.util.jar JarFile]))
+
 (deftest large-file
   (testing "Testing a large file of valid input"
            (let [jar (new JarFile (io/file (io/resource "176.jar")))

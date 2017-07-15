@@ -1,7 +1,6 @@
 (ns ardupilot-utils.impl.log-reader
     (:require [clojure.string :as string])
-    (:import []
-             [java.io EOFException]))
+    (:import [java.io EOFException]))
 
 (def ^:const LOG-HEADER-BYTE1 0xA3)
 (def ^:const LOG-HEADER-BYTE2 0x95)
