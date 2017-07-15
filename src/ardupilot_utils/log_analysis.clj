@@ -10,6 +10,55 @@
       :summarize-fn ~summarize-fn
       :initial-state ~initial-state}))
 
+(def-log-test performance-test
+  (fn [state {:keys [message-type] :as message}]
+      (case message-type
+        :PM (let [{:keys [LogDrop MaxT NLon NLoop]} message
+                  {:keys [dropped long-loops maximum-loop-time pm-count timing-misses total-loops]} state]
+              (assoc state
+                     :dropped (+ dropped LogDrop)
+                     :long-loops (+ long-loops NLon)
+                     :maximum-loop-time (max MaxT maximum-loop-time)
+                     :timing-misses (if (and (pos? NLoop) (> (/ NLon NLoop) 0.06))
+                                      (inc timing-misses)
+                                      timing-misses)
+                     :total-loops (+ total-loops NLoop)
+                     :pm-count (inc pm-count)))
+        :PARM (if (= (:Name message) "SCHED_LOOP_RATE")
+                (assoc state :loop-rate (:Value message))
+                state)
+        state))
+  (fn [{:keys [dropped loop-rate long-loops maximum-loop-time pm-count timing-misses total-loops]}]
+      (when (pos? pm-count) ; at least one PM message was found
+        (conj []
+              (when (pos? timing-misses)
+                {:result :fail
+                 :sub-test :performance-timing-misses
+                 :reason (format "The autopilot missed it's timing requirement (>5% of the time in a measurement interval) %d times (out of %d intervals)" timing-misses pm-count)
+                 :timing-misses timing-misses
+                 :pm-count pm-count})
+              (when (pos? dropped)
+                {:result :fail
+                 :sub-test :performance-log-drops
+                 :reason (format "Dropped %d log messages" dropped)
+                 :dropped dropped})
+              (when (> maximum-loop-time (* 1.05 (/ 1e6 loop-rate)))
+                {:result :fail
+                 :sub-test :performance-loop-time
+                 :reason (format "Longest message exceeded the target loop rate by more then 5%% (%d us)" maximum-loop-time)
+                 :loop-rate loop-rate
+                 :long-loops long-loops
+                 :maximum-loop-time maximum-loop-time
+                 :total-loops total-loops})
+              )))
+  {:dropped 0
+   :loop-rate 50 ; nothing should run slower then this
+   :long-loops 0
+   :maximum-loop-time 0
+   :pm-count 0
+   :timing-misses 0
+   :total-loops 0})
+
 (def-log-test power-test
   (fn [state {:keys [message-type] :as message}]
     (if (= message-type :POWR)
@@ -51,7 +100,7 @@
 
 (defn analyze-log
   "Runs a selection of tests over a DF log."
-  ([stream] (analyze-log stream [power-test]))
+  ([stream] (analyze-log stream [performance-test power-test]))
   ([stream tests]
    (remove empty?
            (flatten

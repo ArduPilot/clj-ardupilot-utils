@@ -10,6 +10,6 @@
                  entry (.getEntry jar "176.BIN")]
              (with-open [input (.getInputStream jar entry)]
                (let [results (analyze-log input)]
-                 (is (empty? results)))))))
+                 (is (= (count results) 2)))))))
 
 
