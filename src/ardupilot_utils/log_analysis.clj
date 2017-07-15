@@ -10,6 +10,19 @@
       :summarize-fn ~summarize-fn
       :initial-state ~initial-state}))
 
+(def-log-test nan-test
+  (fn [state message]
+      (if (empty? (filter (fn [[k v]] (and (float? v) (Float/isNaN v))) message))
+        state
+        (conj state message)))
+  (fn [state]
+      (when-not (empty? state)
+        {:result :fail
+         :sub-test :nan-test
+         :reason "Found log messages containing NaN's"
+         :messages state}))
+  [])
+
 (def-log-test performance-test
   (fn [state {:keys [message-type] :as message}]
       (case message-type
@@ -100,7 +113,7 @@
 
 (defn analyze-log
   "Runs a selection of tests over a DF log."
-  ([stream] (analyze-log stream [performance-test power-test]))
+  ([stream] (analyze-log stream [nan-test performance-test power-test]))
   ([stream tests]
    (remove empty?
            (flatten
