@@ -12,7 +12,7 @@
 
 (def-log-test nan-test
   (fn [state message]
-      (if (empty? (filter (fn [[k v]] (and (float? v) (Float/isNaN v))) message))
+      (if (empty? (filter (fn [[k v]] (and (float? v) (Float/isNaN v) (not= k :RelOriginAlt))) message))
         state
         (conj state message)))
   (fn [state]
