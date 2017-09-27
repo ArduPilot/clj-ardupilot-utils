@@ -65,3 +65,16 @@
                                                        :type (get format# %))
                                             (range (count format#)))
                               :message-type (keyword message-name#)})))
+
+(defmacro merge-format-message-by-type
+  "Handles the intermediate format message representation"
+  [format-messages message]
+  `(let [names# (string/split (:Columns ~message) #",")
+         format# (:Format ~message)
+         message-name# (:Name ~message)]
+     (assoc ~format-messages
+            (keyword message-name#) {:name message-name#
+                              :fields (mapv #(hash-map :name (keyword (get names# %))
+                                                       :type (get format# %))
+                                            (range (count format#)))
+                              :message-type (keyword message-name#)})))
