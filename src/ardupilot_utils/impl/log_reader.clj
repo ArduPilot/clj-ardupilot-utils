@@ -28,6 +28,7 @@
   "Attempts to read the requested format type"
   [field-type reader]
   `(case ~field-type
+     \a (short-array (repeatedly 32 #(.readShort ~reader)))                     ; int16[32]
      \b (.readByte ~reader)                                                     ; int8
      \B (.readUnsignedByte ~reader)                                             ; uint8
      \h (.readShort ~reader)                                                    ; int16
