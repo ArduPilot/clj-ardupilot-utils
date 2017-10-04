@@ -21,8 +21,7 @@
                                state
                                (assoc! state :stage :flare))
                        :POS (assoc! state :entry-pos message)
-                       :NKF2 (assoc! state :entry-wind-e (:VWE message)
-                                           :entry-wind-n (:VWN message))
+                       :NKF2 (assoc! state :entry-wind message)
                        state)
       :flare (case message-type
                :ATT (assoc! state :pitch (:Pitch message))
@@ -39,10 +38,12 @@
                 state)
       :complete (case message-type
                   ; require a PIDL message to indicate that we are still in deepstall, and it was not an aborted landing
-                  :PIDL (let [{:keys [entry-pos flare-pos impact-pos entry-wind-e entry-wind-n]} state
+                  :PIDL (let [{:keys [entry-pos flare-pos impact-pos entry-wind]} state
                               travel-time (/ (- (:TimeUS impact-pos) (:TimeUS flare-pos)) 1000000.0)
                               travel-distance (haversine {:latitude (:Lat flare-pos) :longitude (:Lng flare-pos)}
                                                          {:latitude (:Lat impact-pos) :longitude (:Lng impact-pos)})
+                              entry-wind-e (:VWE entry-wind)
+                              entry-wind-n (:VWE entry-wind)
                               wind-speed (Math/sqrt (+ (* entry-wind-e entry-wind-e) (* entry-wind-n entry-wind-n)))]
                           (transient {:stage :normal-flight
                                       :results (conj (:results state)
