@@ -14,21 +14,22 @@
   (fn [state message]
       (if (empty? (filter (fn [[k v]] (and (float? v) (Float/isNaN v) (not= k :RelOriginAlt))) message))
         state
-        (conj state message)))
+        (conj! state message)))
   (fn [state]
+    (let [state (persistent! state)]
       (when-not (empty? state)
         {:result :fail
          :sub-test :nan-test
          :reason "Found log messages containing NaN's"
-         :messages state}))
-  [])
+         :messages state})))
+  (transient []))
 
 (def-log-test performance-test
   (fn [state {:keys [message-type] :as message}]
       (case message-type
         :PM (let [{:keys [LogDrop MaxT NLon NLoop]} message
                   {:keys [dropped long-loops maximum-loop-time pm-count timing-misses total-loops]} state]
-              (assoc state
+              (assoc! state
                      :dropped (+ dropped LogDrop)
                      :long-loops (+ long-loops NLon)
                      :maximum-loop-time (max MaxT maximum-loop-time)
@@ -38,7 +39,7 @@
                      :total-loops (+ total-loops NLoop)
                      :pm-count (inc pm-count)))
         :PARM (if (= (:Name message) "SCHED_LOOP_RATE")
-                (assoc state :loop-rate (:Value message))
+                (assoc! state :loop-rate (:Value message))
                 state)
         state))
   (fn [{:keys [dropped loop-rate long-loops maximum-loop-time pm-count timing-misses total-loops]}]
@@ -64,22 +65,23 @@
                  :maximum-loop-time maximum-loop-time
                  :total-loops total-loops})
               )))
-  {:dropped 0
-   :loop-rate 50 ; nothing should run slower then this
-   :long-loops 0
-   :maximum-loop-time 0
-   :pm-count 0
-   :timing-misses 0
-   :total-loops 0})
+  (transient
+    {:dropped 0
+     :loop-rate 50 ; nothing should run slower then this
+     :long-loops 0
+     :maximum-loop-time 0
+     :pm-count 0
+     :timing-misses 0
+     :total-loops 0}))
 
 (def-log-test power-test
   (fn [state {:keys [message-type] :as message}]
     (if (= message-type :POWR)
       (let [vcc (:Vcc message)
             {:keys [vcc-min vcc-max]} state]
-        (assoc state
-               :vcc-min (min vcc vcc-min)
-               :vcc-max (max vcc vcc-max)))
+        (assoc! state
+                :vcc-min (min vcc vcc-min)
+                :vcc-max (max vcc vcc-max)))
       state))
   (fn [{:keys [vcc-min vcc-max]}]
       (when (pos? vcc-max) ; positive vcc-max indicates we got at least one message
@@ -106,10 +108,9 @@
                      :sub-test :vcc-maximum
                      :reason (format "Vcc above the maximum %.1fv, highest read values was %.3fv"
                                      maximum-threshold vcc-max)
-                     :vcc-max vcc-max})
-                  ))))
-  {:vcc-min Float/MAX_VALUE
-   :vcc-max 0})
+                     :vcc-max vcc-max})))))
+  (transient {:vcc-min Float/MAX_VALUE
+              :vcc-max 0}))
 
 (defn analyze-log
   "Runs a selection of tests over a DF log."
