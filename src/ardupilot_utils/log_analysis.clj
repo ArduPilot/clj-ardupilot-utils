@@ -1,5 +1,6 @@
 (ns ardupilot-utils.log-analysis
-    (:require [ardupilot-utils.log-reader :refer [parse-bin]]))
+    (:require [ardupilot-utils.coordinates :refer [haversine]]
+              [ardupilot-utils.log-reader :refer [parse-bin]]))
 
 (defmacro def-log-test
   "Creates a test definition"
@@ -9,6 +10,65 @@
       :test-fn ~test-fn
       :summarize-fn ~summarize-fn
       :initial-state ~initial-state}))
+
+(def-log-test deepstall-test
+  (fn [{:keys [stage] :as state} {:keys [message-type] :as message}]
+    (case stage
+      :normal-flight (case message-type
+                       :ATT (assoc! state :pitch (:Pitch message))
+                       :PIDL (if (or (zero? (:Des message))
+                                     (< (:RelHomeAlt (:entry-pos state)) 30.0))
+                               state
+                               (assoc! state :stage :flare))
+                       :POS (assoc! state :entry-pos message)
+                       :NKF2 (assoc! state :entry-wind-e (:VWE message)
+                                           :entry-wind-n (:VWN message))
+                       state)
+      :flare (case message-type
+               :ATT (assoc! state :pitch (:Pitch message))
+               :IMU (if (and (< (:AccZ message) -9.0) (neg? (:pitch state)))
+                      (assoc! state :stage :travel)
+                      state)
+               :POS (assoc! state :flare-pos message)
+               state)
+      :travel (case message-type
+                :IMU (if (> (Math/abs (double (:AccZ message))) 15.0)
+                       (assoc! state :stage :complete)
+                       state)
+                :POS (assoc! state :impact-pos message)
+                state)
+      :complete (case message-type
+                  ; require a PIDL message to indicate that we are still in deepstall, and it was not an aborted landing
+                  :PIDL (let [{:keys [entry-pos flare-pos impact-pos entry-wind-e entry-wind-n]} state
+                              travel-time (/ (- (:TimeUS impact-pos) (:TimeUS flare-pos)) 1000000.0)
+                              travel-distance (haversine {:latitude (:Lat flare-pos) :longitude (:Lng flare-pos)}
+                                                         {:latitude (:Lat impact-pos) :longitude (:Lng impact-pos)})
+                              wind-speed (Math/sqrt (+ (* entry-wind-e entry-wind-e) (* entry-wind-n entry-wind-n)))]
+                          (transient {:stage :normal-flight
+                                      :results (conj (:results state)
+                                                     {:wind-speed wind-speed
+                                                      :flare-distance (haversine {:latitude (:Lat entry-pos) :longitude (:Lng entry-pos)}
+                                                                                 {:latitude (:Lat flare-pos) :longitude (:Lng flare-pos)})
+                                                      :travel-distance travel-distance
+                                                      :travel-time travel-time
+                                                      :v-down (/ (- (:RelHomeAlt flare-pos) (:RelHomeAlt impact-pos)) travel-time)
+                                                      :v-forward (+ wind-speed (/ travel-distance travel-time))
+                                                      :entry-pos entry-pos
+                                                      :flare-pos flare-pos
+                                                      :impact-pos impact-pos})}))
+                  state)
+      (throw (ex-info "Deepstall test hit unknown stage"
+                      {:stage stage
+                       :state (persistent! state)
+                       :message message}))))
+  (fn [{:keys [results]}]
+    {:result (if (empty? results) :fail :pass)
+     :analysis results
+     :sub-test :deepstall-test
+     :reason (if (empty? results)
+               "No results found in the log file"
+               "")})
+  (transient {:stage :normal-flight}))
 
 (def-log-test nan-test
   (fn [state message]
