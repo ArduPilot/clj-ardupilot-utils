@@ -16,8 +16,9 @@
     (case stage
       :normal-flight (case message-type
                        :ATT (assoc! state :pitch (:Pitch message))
-                       :PIDL (if (or (zero? (:Des message))
-                                     (< (:RelHomeAlt (:entry-pos state)) 30.0))
+                       :PIDL (if (and (:entry-pos state)
+                                      (or (zero? (:Des message))
+                                          (< (:RelHomeAlt (:entry-pos state)) 30.0)))
                                state
                                (assoc! state :stage :flare))
                        :POS (assoc! state :entry-pos message)
@@ -25,13 +26,14 @@
                        state)
       :flare (case message-type
                :ATT (assoc! state :pitch (:Pitch message))
-               :IMU (if (and (< (:AccZ message) -9.0) (neg? (:pitch state)))
+               :IMU (if (and (< (:AccZ message) -9.0) (neg? (:pitch state)) (:flare-pos state))
                       (assoc! state :stage :travel)
                       state)
                :POS (assoc! state :flare-pos message)
                state)
       :travel (case message-type
-                :IMU (if (> (Math/abs (double (:AccZ message))) 15.0)
+                :IMU (if (and (> (Math/abs (double (:AccZ message))) 15.0)
+                              (:impact-pos state))
                        (assoc! state :stage :complete)
                        state)
                 :POS (assoc! state :impact-pos message)
