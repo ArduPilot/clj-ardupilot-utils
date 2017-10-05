@@ -69,7 +69,7 @@
      :reason (if (empty? results)
                "No results found in the log file"
                "")})
-  (transient {:stage :normal-flight}))
+  {:stage :normal-flight})
 
 (def-log-test nan-test
   (fn [state message]
@@ -83,7 +83,7 @@
          :sub-test :nan-test
          :reason "Found log messages containing NaN's"
          :messages state})))
-  (transient []))
+  [])
 
 (def-log-test performance-test
   (fn [state {:keys [message-type] :as message}]
@@ -126,14 +126,13 @@
                  :maximum-loop-time maximum-loop-time
                  :total-loops total-loops})
               )))
-  (transient
-    {:dropped 0
-     :loop-rate 50 ; nothing should run slower then this
-     :long-loops 0
-     :maximum-loop-time 0
-     :pm-count 0
-     :timing-misses 0
-     :total-loops 0}))
+  {:dropped 0
+   :loop-rate 50 ; nothing should run slower then this
+   :long-loops 0
+   :maximum-loop-time 0
+   :pm-count 0
+   :timing-misses 0
+   :total-loops 0})
 
 (def-log-test power-test
   (fn [state {:keys [message-type] :as message}]
@@ -170,8 +169,8 @@
                      :reason (format "Vcc above the maximum %.1fv, highest read values was %.3fv"
                                      maximum-threshold vcc-max)
                      :vcc-max vcc-max})))))
-  (transient {:vcc-min Float/MAX_VALUE
-              :vcc-max 0}))
+  {:vcc-min Float/MAX_VALUE
+   :vcc-max 0})
 
 (defn analyze-log
   "Runs a selection of tests over a DF log."
@@ -185,5 +184,5 @@
                (reduce (fn [tests message]
                            (mapv (fn [{:keys [state test-fn] :as test}]
                                      (assoc test :state (test-fn state message))) tests))
-                       (mapv #(assoc % :state (:initial-state %)) tests)
+                       (mapv #(assoc % :state (transient (:initial-state %))) tests)
                        (parse-bin stream)))))))
