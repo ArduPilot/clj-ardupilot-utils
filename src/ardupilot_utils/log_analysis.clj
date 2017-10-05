@@ -43,7 +43,7 @@
                               travel-distance (haversine {:latitude (:Lat flare-pos) :longitude (:Lng flare-pos)}
                                                          {:latitude (:Lat impact-pos) :longitude (:Lng impact-pos)})
                               entry-wind-e (:VWE entry-wind)
-                              entry-wind-n (:VWE entry-wind)
+                              entry-wind-n (:VWN entry-wind)
                               wind-speed (Math/sqrt (+ (* entry-wind-e entry-wind-e) (* entry-wind-n entry-wind-n)))]
                           (transient {:stage :normal-flight
                                       :results (conj (:results state)
