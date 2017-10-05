@@ -16,10 +16,11 @@
     (case stage
       :normal-flight (case message-type
                        :ATT (assoc! state :pitch (:Pitch message))
-                       :PIDL (if (and (:entry-pos state)
-                                      (or (zero? (:Des message))
-                                          (< (:RelHomeAlt (:entry-pos state)) 30.0)))
-                               state
+                       :PIDL (if (or (zero? (:Des message))
+                                     (= (:Des message) (:Des (:PIDL state)))
+                                     (nil? (:RelHomeAlt (:entry-pos state)))
+                                     (< (:RelHomeAlt (:entry-pos state)) 30.0))
+                               (assoc! state :PIDL message)
                                (assoc! state :stage :flare))
                        :POS (assoc! state :entry-pos message)
                        :NKF2 (assoc! state :entry-wind message)
@@ -47,7 +48,7 @@
                               entry-wind-e (:VWE entry-wind)
                               entry-wind-n (:VWN entry-wind)
                               wind-speed (Math/sqrt (+ (* entry-wind-e entry-wind-e) (* entry-wind-n entry-wind-n)))]
-                          (transient {:stage :normal-flight
+                          (transient {:stage :wait-for-stall-exit
                                       :results (conj (:results state)
                                                      {:wind-speed wind-speed
                                                       :flare-distance (haversine {:latitude (:Lat entry-pos) :longitude (:Lng entry-pos)}
@@ -60,6 +61,11 @@
                                                       :flare-pos flare-pos
                                                       :impact-pos impact-pos})}))
                   state)
+      :wait-for-stall-exit (case message-type
+                             :MODE (if (not= (:Mode message) 10)
+                                     state
+                                     (assoc! state :stage :normal-flight))
+                             state)
       (throw (ex-info "Deepstall test hit unknown stage"
                       {:stage stage
                        :state (persistent! state)
