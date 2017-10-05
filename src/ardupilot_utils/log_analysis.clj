@@ -17,6 +17,7 @@
       :normal-flight (case message-type
                        :ATT (assoc! state :pitch (:Pitch message))
                        :PIDL (if (or (zero? (:Des message))
+                                     (nil? (:PIDL state))
                                      (= (:Des message) (:Des (:PIDL state)))
                                      (nil? (:RelHomeAlt (:entry-pos state)))
                                      (< (:RelHomeAlt (:entry-pos state)) 30.0))
@@ -30,13 +31,23 @@
                :IMU (if (and (< (:AccZ message) -9.0) (neg? (:pitch state)) (:flare-pos state))
                       (assoc! state :stage :travel)
                       state)
+                :MODE (if (= (:Mode message) 10) ; detect if we leave auto
+                        state
+                        (transient {:stage :normal-flight
+                                    :results (:results state)}))
                :POS (assoc! state :flare-pos message)
                state)
       :travel (case message-type
-                :IMU (if (and (> (Math/abs (double (:AccZ message))) 15.0)
-                              (:impact-pos state))
+                :IMU (if (and (> (Math/abs (double (:AccZ message))) 25.0)
+                              (:impact-pos state)
+                              (< (:RelHomeAlt (:impact-pos state)) 10.0))
                        (assoc! state :stage :complete)
                        state)
+                :MODE (do (println "ate a mode " message)(if (= (:Mode message) 10) ; detect if we leave auto
+                        state
+                        (transient {:stage :normal-flight
+                                    :results (:results state)}))
+                          )
                 :POS (assoc! state :impact-pos message)
                 state)
       :complete (case message-type
