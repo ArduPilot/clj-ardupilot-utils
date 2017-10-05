@@ -43,11 +43,10 @@
                               (< (:RelHomeAlt (:impact-pos state)) 10.0))
                        (assoc! state :stage :complete)
                        state)
-                :MODE (do (println "ate a mode " message)(if (= (:Mode message) 10) ; detect if we leave auto
+                :MODE (if (= (:Mode message) 10) ; detect if we leave auto
                         state
                         (transient {:stage :normal-flight
                                     :results (:results state)}))
-                          )
                 :POS (assoc! state :impact-pos message)
                 state)
       :complete (case message-type
@@ -70,7 +69,8 @@
                                                       :v-forward (+ wind-speed (/ travel-distance travel-time))
                                                       :entry-pos entry-pos
                                                       :flare-pos flare-pos
-                                                      :impact-pos impact-pos})}))
+                                                      :impact-pos impact-pos
+                                                      :travel-height (- (:RelHomeAlt flare-pos) (:RelHomeAlt impact-pos))})}))
                   state)
       :wait-for-stall-exit (case message-type
                              :MODE (if (not= (:Mode message) 10)
