@@ -12,14 +12,16 @@
   [reader]
   `(try
      (loop [stage# :header-1]
+       (let [read-byte# (.readUnsignedByte ~reader)]
+         (when (>= read-byte# 0)
            (case stage#
-             :header-1 (if (= (.readUnsignedByte ~reader) LOG-HEADER-BYTE1)
+             :header-1 (if (= read-byte# LOG-HEADER-BYTE1)
                          (recur :header-2)
                          (recur :header-1))
-             :header-2 (if (= (.readUnsignedByte ~reader) LOG-HEADER-BYTE2)
+             :header-2 (if (= read-byte# LOG-HEADER-BYTE2)
                          (recur :header-id)
                          (recur :header-1))
-             :header-id (.readUnsignedByte ~reader)))
+             :header-id read-byte#))))
      (catch EOFException e#)))
 
 (defonce UINT64-MAX-VALUE (.toBigInteger 18446744073709551615N))

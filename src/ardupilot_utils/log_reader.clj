@@ -32,4 +32,5 @@
            (cons message (parse-bin reader (if (= message-id FORMAT-MESSAGE-ID)
                                              (merge-format-message formats message)
                                              formats)))
-           (.close reader)))))))
+           (.close reader)))
+       (.close reader)))))
