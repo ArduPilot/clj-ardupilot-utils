@@ -9,7 +9,7 @@ A Clojure library of helper utilities for use with [Ardupilot](https://github.co
 `clj-ardupilot-utils` is available from [Clojars](https://clojars.org/ardupilot/clj-ardupilot-utils):
 
 ```
-[ardupilot/clj-ardupilot-utils "0.1.0-SNAPSHOT"]
+[ardupilot/clj-ardupilot-utils "0.1.0"]
 ```
 
 ## Usage

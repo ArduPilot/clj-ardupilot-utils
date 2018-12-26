@@ -1,6 +1,7 @@
 (ns ardupilot-utils.log-analysis
     (:require [ardupilot-utils.coordinates :refer [haversine]]
-              [ardupilot-utils.log-reader :refer [parse-bin]]))
+              [ardupilot-utils.log-reader :refer [parse-bin]]
+              [clojure.string :as string]))
 
 (defmacro def-log-test
   "Creates a test definition"
@@ -89,6 +90,99 @@
                "No results found in the log file"
                "")})
   {:stage :normal-flight})
+
+(def-log-test vtol-transition-analysis
+  (fn [state message]
+      (if (= (:message-type message) :MSG)
+        (let [{:keys [Message TimeUS]} message]
+          (cond
+            (string/starts-with? Message "Executing nav command ID") (assoc! state :trans-start TimeUS)
+            (= Message "Transition airspeed wait")                   (assoc! state :trans-start TimeUS)
+            (and (nil? (:trans-airspeed state))
+                 (string/starts-with? Message "Transition airspeed reached")) (assoc! state :trans-airspeed TimeUS)
+            (= Message "Transition done") (let [{:keys [trans-start trans-airspeed results]} state]
+                                            (dissoc! (or
+                                                       (when (and trans-start trans-airspeed)
+                                                         (assoc! state :results (conj results {:trans-start trans-start
+                                                                                               :trans-airspeed trans-airspeed
+                                                                                               :trans-done TimeUS})))
+                                                       state)
+                                                     :nav-start
+                                                     :min-airspeed))
+            :else state))
+        state))
+  (fn [state]
+    (let [{:keys [results]} state
+          failed (empty? results)]
+        {:result (if failed :fail :pass)
+         :sub-test :vtol-transition-analysis
+         :reason (if failed "No vtol transitions found" "")
+         :raw-results results
+         :results (map (fn [{:keys [trans-start trans-airspeed trans-done]}]
+                         {:total-time (* (- trans-done trans-start) 1e-6)
+                          :airspeed-time (* (- trans-airspeed trans-start) 1e-6)
+                          :timer-time (* (- trans-done trans-airspeed) 1e-6)}) results)}))
+  {:results []})
+
+(def-log-test vtol-takeoff-analysis
+  (fn [state {:keys [message-type] :as message}]
+    ; always do updates that can happen at any time (motor information, relative altitude)
+    (let [{:keys [stage] :as state} (or (case message-type
+                                          :PARM (let [parm-name (:Name message)]
+                                                  (if (and (string/starts-with? parm-name "SERVO")
+                                                           (string/ends-with? parm-name "FUNCTION")
+                                                           (contains? #{33 34 35 36 37 38 39 40} (long (:Value message))))
+                                                    (when-let [servo-num (first (re-find #"[0-9]+" parm-name))]
+                                                      (assoc! state :motors (conj (:motors state) (keyword (str "C" servo-num)))))
+                                                    (when (string/ends-with? parm-name "PWM_MIN") ; prefix is different between copter/plane
+                                                      (assoc! state :min-pwm (:Value message)))))
+                                          :POS (assoc! state :rel-alt (:RelHomeAlt message))
+                                          :MODE (assoc! state :mode (:Mode message))
+                                          state)
+                                        state)]
+      (case stage
+        :wait-for-takeoff-command (if (and (= message-type :CMD)
+                                           (= (:CId message) 84))
+                                    (assoc! state :stage :wait-for-motors
+                                                  :takeoff-alt (:Alt message))
+                                    state)
+        :wait-for-motors (case message-type
+                          :CMD (if (not= (:CId message) 84)
+                                 (assoc! state :stage :wait-for-takeoff-command)
+                                 state)
+                          :RCOU (if (and (= (:mode state) 10) ; plane is in auto
+                                         (< (:rel-alt state) 5.0) ; sufficently close to the ground
+                                         (reduce (fn [any-high? motor] (or any-high? (> (get message motor) (:min-pwm state))))
+                                                 false (:motors state)))
+                                  (assoc! state
+                                          :stage :wait-for-transition
+                                          :takeoff-start (:TimeUS message))
+                                  state)
+                          state)
+        :wait-for-transition (if (and (= message-type :CMD)
+                                      (not= (:CId message) 84))
+                                    (dissoc!
+                                      (assoc! state
+                                              :stage :wait-for-takeoff-command
+                                              :results (conj (:results state)
+                                                             {:time (* (- (:TimeUS message) (:takeoff-start state)) 1e-6)
+                                                              :altitude (:takeoff-alt state)}))
+                                      :takeoff-alt
+                                      :takeoff-start)
+                                    state))))
+  (fn [state]
+    (let [{:keys [results]} state
+          failed (empty? results)]
+        {:result (if failed :fail :pass)
+         :sub-test :vtol-takeoff-analysis
+         :reason (if failed "No vtol takeoffs found" "")
+         :results results}))
+  {:motors #{}
+   :min-pwm 1000.0
+   :stage :wait-for-takeoff-command
+   :results []
+   :rel-alt 0
+   :mode 0})
 
 (def-log-test nan-test
   (fn [state message]
@@ -193,8 +287,8 @@
 
 (defn analyze-log
   "Runs a selection of tests over a DF log."
-  ([stream] (analyze-log stream [nan-test performance-test power-test]))
-  ([stream tests]
+  ([stream] (analyze-log stream nan-test performance-test power-test))
+  ([stream & tests]
    (remove empty?
            (flatten
              (mapv
