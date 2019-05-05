@@ -108,7 +108,7 @@
                                                                                                :trans-done TimeUS})))
                                                        state)
                                                      :nav-start
-                                                     :min-airspeed))
+                                                     :trans-airspeed))
             :else state))
         state))
   (fn [state]
@@ -204,13 +204,13 @@
         :PM (let [{:keys [LogDrop MaxT NLon NLoop]} message
                   {:keys [dropped long-loops maximum-loop-time pm-count timing-misses total-loops]} state]
               (assoc! state
-                     :dropped (+ dropped LogDrop)
-                     :long-loops (+ long-loops NLon)
-                     :maximum-loop-time (max MaxT maximum-loop-time)
-                     :timing-misses (if (and (pos? NLoop) (> (/ NLon NLoop) 0.06))
+                     :dropped (if LogDrop (+ dropped LogDrop) dropped)
+                     :long-loops (if NLon (+ long-loops NLon) long-loops)
+                     :maximum-loop-time (if MaxT (max MaxT maximum-loop-time) maximum-loop-time)
+                     :timing-misses (if (and NLoop (pos? NLoop) (> (/ NLon NLoop) 0.06))
                                       (inc timing-misses)
                                       timing-misses)
-                     :total-loops (+ total-loops NLoop)
+                     :total-loops (if NLoop (+ total-loops NLoop) total-loops)
                      :pm-count (inc pm-count)))
         :PARM (if (= (:Name message) "SCHED_LOOP_RATE")
                 (assoc! state :loop-rate (:Value message))
@@ -222,7 +222,7 @@
               (when (pos? timing-misses)
                 {:result :fail
                  :sub-test :performance-timing-misses
-                 :reason (format "The autopilot missed it's timing requirement (>5% of the time in a measurement interval) %d times (out of %d intervals)" timing-misses pm-count)
+                 :reason (format "The autopilot missed it's timing requirement (>5%% of the time in a measurement interval) %d times (out of %d intervals)" timing-misses pm-count)
                  :timing-misses timing-misses
                  :pm-count pm-count})
               (when (pos? dropped)
