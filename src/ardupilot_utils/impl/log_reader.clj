@@ -1,6 +1,6 @@
 (ns ardupilot-utils.impl.log-reader
     (:require [clojure.string :as string])
-    (:import [java.io EOFException]))
+    (:import [java.io DataInput EOFException]))
 
 (def ^:const LOG-HEADER-BYTE1 0xA3)
 (def ^:const LOG-HEADER-BYTE2 0x95)
@@ -26,6 +26,16 @@
 
 (defonce UINT64-MAX-VALUE (.toBigInteger 18446744073709551615N))
 
+
+(defn read-chars
+  [length ^DataInput reader]
+  (apply str
+         (repeatedly length
+                     #(let [read-byte (.readByte reader)]
+                       (if (<= read-byte 0)
+                         nil
+                         (char read-byte))))))
+
 (defmacro read-field
   "Attempts to read the requested format type"
   [field-type reader]
@@ -39,12 +49,9 @@
      \I (bit-and (long (.readInt ~reader)) 0xFFFFFFFF)                          ; int32
      \f (.readFloat ~reader)                                                    ; float
      \d (.readDouble ~reader)                                                   ; double
-     \n (apply str (repeatedly  4 #(let [read-char# (char (.readByte ~reader))] ; char[4]
-                                     (when (not= read-char# \u0000) read-char#))))
-     \N (apply str (repeatedly 16 #(let [read-char# (char (.readByte ~reader))] ; char[16]
-                                     (when (not= read-char# \u0000) read-char#))))
-     \Z (apply str (repeatedly 64 #(let [read-char# (char (.readByte ~reader))] ; char[64]
-                                     (when (not= read-char# \u0000) read-char#))))
+     \n (read-chars  4 ~reader) ; char[4]
+     \N (read-chars 16 ~reader) ; char[16]
+     \Z (read-chars 64 ~reader) ; char[64]
      \c (* (.readShort ~reader) 1e-2)                                           ; int16 * 100
      \C (* (.readUnsignedShort ~reader) 1e-2)                                   ; uint16 * 100
      \e (* (.readInt ~reader) 1e-2)                                             ; int32 * 100

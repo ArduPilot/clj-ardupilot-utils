@@ -19,4 +19,8 @@
            (let [jar (new JarFile (io/file (io/resource "176.jar")))
                  entry (.getEntry jar "176.BIN")]
              (with-open [input (.getInputStream jar entry)]
-               (is (= 497313 (count (filter #(contains? % :AccY) (parse-bin input)))))))))
+               (let [parsed (parse-bin input)]
+                 (is (= 497313 (count (filter #(contains? % :AccY) parsed))))
+                 (is (= {:message-type :PIDR, :TimeUS 42273147N, :Des 0.0, :P 0.0, :I 0.0, :D 0.0, :FF 0.0, :AFF 0.0}
+                        (nth parsed 15000)))
+                 )))))
