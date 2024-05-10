@@ -4,21 +4,11 @@
               [mavlink.core :as mavlink])
     (:import [java.io InputStream]))
 
-(defn- get-parse-options
-  []
-  {:xml-sources (mapv (fn[m] {:xml-file m
-                              :xml-source (io/input-stream (io/resource m))})
-                      ["ardupilotmega.xml" "common.xml" "icarous.xml" "uAvionix.xml"])})
-(defonce mavlink-info (delay (let [parse-options (get-parse-options)
-                                   info (mavlink/parse parse-options)]
-                               (doseq [{:keys [xml-source]} (:xml-sources parse-options)]
-                                 (.close ^InputStream xml-source))
-                               info)))
 (defn parse-log
-  [log]
+  [mavlink-info log]
   (let [decoded-tlog-ch (async/chan 100)
         tlog-stream (io/input-stream log)]
-    (mavlink/open-channel @mavlink-info
+    (mavlink/open-channel mavlink-info
                           {:protocol :mavlink1
                            :system-id 1
                            :component-id 190
